@@ -39,13 +39,19 @@ static Layer *s_board_layer, *s_players_layer;
 void board_layer_update_callback(Layer *layer, GContext* ctx) {
   graphics_context_set_stroke_color(ctx, COLOR_FOREGROUND);
 
+  GPoint origin = PBL_IF_ROUND_ELSE(GPoint(37, 19), GPoint(19, 19));
+
   // Vertical lines
-  graphics_draw_line(ctx, GPoint(54, 19), GPoint(54, 123));
-  graphics_draw_line(ctx, GPoint(89, 19), GPoint(89, 123));
+  graphics_draw_line(ctx, GPoint(origin.x + 35, origin.y), 
+                          GPoint(origin.x + 35, origin.y + 104));
+  graphics_draw_line(ctx, GPoint(origin.x + 70, origin.y), 
+                          GPoint(origin.x + 70, origin.y + 104));
 
   // Horizontal lines
-  graphics_draw_line(ctx, GPoint(19, 54), GPoint(123, 54));
-  graphics_draw_line(ctx, GPoint(19, 89), GPoint(123, 89));
+  graphics_draw_line(ctx, GPoint(origin.x, origin.y + 35), 
+                          GPoint(origin.x + 104, origin.y + 35));
+  graphics_draw_line(ctx, GPoint(origin.x, origin.y + 70), 
+                          GPoint(origin.x + 104, origin.y + 70));
 }
 
 void graphics_draw_line_wide(GContext *ctx, GPoint p0, GPoint p1) {
@@ -70,7 +76,7 @@ void draw_cross_player(GContext* ctx, GPoint center) {
 GPoint get_cell_center(unsigned int cell_offset) {
   // Returns the centre coordinates of a cell location on the playing board.
   const unsigned short NUM_COLUMNS = 3;
-  const unsigned short OFFSET_X = 37;
+  const unsigned short OFFSET_X = PBL_IF_ROUND_ELSE(55, 37);
   const unsigned short OFFSET_Y = 37;
   const unsigned short CELL_SIZE = 35;
 
@@ -179,12 +185,7 @@ void update_time_text() {
   time_t now = time(NULL);
   const struct tm *current_time = localtime(&now);
   
-  char *time_format;
-  if (clock_is_24h_style()) {
-    time_format = "%R";
-  } else {
-    time_format = "%I:%M";
-  }
+  char *time_format = clock_is_24h_style() ? "%R" : "%I:%M";
 
   static char s_time_text[] = "00:00";
   strftime(s_time_text, sizeof(s_time_text), time_format, current_time);
@@ -217,7 +218,7 @@ static void main_window_load(Window *window) {
   layer_add_child(window_layer, s_players_layer);
 
   // Init the text layer used to show the time
-  s_time_layer = text_layer_create(GRect(0, 126, 144, 42));
+  s_time_layer = text_layer_create(GRect(0, 126, bounds.size.w, 42));
   text_layer_set_text_alignment(s_time_layer, GTextAlignmentCenter);
   text_layer_set_text_color(s_time_layer, COLOR_FOREGROUND);
   text_layer_set_background_color(s_time_layer, GColorClear);
