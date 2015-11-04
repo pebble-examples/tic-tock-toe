@@ -12,6 +12,7 @@
 
 #define DRAW_WIN_LINE 10
 #define DRAW_BLANK 11
+#define CELL_SIZE 35
 
 //
 // Board location offsets for the move sequence arrays:
@@ -32,20 +33,26 @@ typedef struct {
   unsigned short sequence_offset;
 } GameState;
 
-static Window *s_main_window; 
+static Window *s_main_window;
 static TextLayer *s_time_layer;
-static Layer *s_board_layer, *s_players_layer; 
+static Layer *s_board_layer, *s_players_layer;
 
 void board_layer_update_callback(Layer *layer, GContext* ctx) {
   graphics_context_set_stroke_color(ctx, COLOR_FOREGROUND);
 
+  const GPoint grid_origin = PBL_IF_ROUND_ELSE(GPoint(37, 19), GPoint(19, 19));
+
   // Vertical lines
-  graphics_draw_line(ctx, GPoint(54, 19), GPoint(54, 123));
-  graphics_draw_line(ctx, GPoint(89, 19), GPoint(89, 123));
+  graphics_draw_line(ctx, GPoint(grid_origin.x + CELL_SIZE, grid_origin.y),
+                          GPoint(grid_origin.x + CELL_SIZE, grid_origin.y + (3 * CELL_SIZE)));
+  graphics_draw_line(ctx, GPoint(grid_origin.x + (2 * CELL_SIZE), grid_origin.y),
+                          GPoint(grid_origin.x + (2 * CELL_SIZE), grid_origin.y + (3 * CELL_SIZE)));
 
   // Horizontal lines
-  graphics_draw_line(ctx, GPoint(19, 54), GPoint(123, 54));
-  graphics_draw_line(ctx, GPoint(19, 89), GPoint(123, 89));
+  graphics_draw_line(ctx, GPoint(grid_origin.x, grid_origin.y + CELL_SIZE),
+                          GPoint(grid_origin.x + (3 * CELL_SIZE), grid_origin.y + CELL_SIZE));
+  graphics_draw_line(ctx, GPoint(grid_origin.x, grid_origin.y + (2 * CELL_SIZE)),
+                          GPoint(grid_origin.x + (3 * CELL_SIZE), grid_origin.y + (2 * CELL_SIZE)));
 }
 
 void graphics_draw_line_wide(GContext *ctx, GPoint p0, GPoint p1) {
@@ -55,10 +62,15 @@ void graphics_draw_line_wide(GContext *ctx, GPoint p0, GPoint p1) {
 }
 
 void draw_circle_player(GContext* ctx, GPoint center) {
+  const int circle_radius = 15;
+
+  // Outer circle
   graphics_context_set_fill_color(ctx, COLOR_FOREGROUND);
-  graphics_fill_circle(ctx, center, 15);
+  graphics_fill_circle(ctx, center, circle_radius);
+
+  // Inner circle
   graphics_context_set_fill_color(ctx, COLOR_BACKGROUND);
-  graphics_fill_circle(ctx, center, 13);
+  graphics_fill_circle(ctx, center, circle_radius - 2);
 }
 
 void draw_cross_player(GContext* ctx, GPoint center) {
@@ -69,13 +81,12 @@ void draw_cross_player(GContext* ctx, GPoint center) {
 
 GPoint get_cell_center(unsigned int cell_offset) {
   // Returns the centre coordinates of a cell location on the playing board.
-  const unsigned short NUM_COLUMNS = 3;
-  const unsigned short OFFSET_X = 37;
-  const unsigned short OFFSET_Y = 37;
-  const unsigned short CELL_SIZE = 35;
+  const unsigned short num_cols = 3;
+  const unsigned short x_offset = PBL_IF_ROUND_ELSE(55, 37);
+  const unsigned short y_offset = 37;
 
-  return GPoint( ((cell_offset % NUM_COLUMNS) * CELL_SIZE) + OFFSET_X,
-		 ((cell_offset / NUM_COLUMNS) * CELL_SIZE) + OFFSET_Y);
+  return GPoint(((cell_offset % num_cols) * CELL_SIZE) + x_offset,
+		            ((cell_offset / num_cols) * CELL_SIZE) + y_offset);
 }
 
 void retrieve_current_game_state(GameState *game_state) {
@@ -110,18 +121,18 @@ void draw_win_line(GContext* ctx, GPoint left_most_point, GPoint right_most_poin
   // Make the ends of the line extend past the edges of the board.
   if (left_most_point.x != right_most_point.x) {
     // It's not a vertical line so adjust the X axis.
-    left_most_point.x -= 18;
-    right_most_point.x += 18;
+    left_most_point.x -= CELL_SIZE / 2;
+    right_most_point.x += CELL_SIZE / 2;
   }
 
   if (left_most_point.y != right_most_point.y) {
     // It's not a horizontal line so adjust the Y axis.
     if (left_most_point.y < right_most_point.y) {
-      left_most_point.y -= 18;
-      right_most_point.y += 18;
+      left_most_point.y -= CELL_SIZE / 2;
+      right_most_point.y += CELL_SIZE / 2;
     } else {
-      left_most_point.y += 18;
-      right_most_point.y -= 18;
+      left_most_point.y += CELL_SIZE / 2;
+      right_most_point.y -= CELL_SIZE / 2;
     }
   }
 
@@ -149,7 +160,7 @@ void draw_game_state(GContext* ctx, const GameState game_state) {
       case DRAW_WIN_LINE:
       	if (game_state.SEQUENCE == SEQUENCE_SECOND_PLAYER_WINS) {
       	  draw_win_line(ctx, get_cell_center(0), get_cell_center(6));
-      	} else { 
+      	} else {
           // Assumes first player wins
       	  draw_win_line(ctx, get_cell_center(6), get_cell_center(2));
       	}
@@ -178,13 +189,8 @@ void players_layer_update_callback(Layer *layer, GContext* ctx) {
 void update_time_text() {
   time_t now = time(NULL);
   const struct tm *current_time = localtime(&now);
-  
-  char *time_format;
-  if (clock_is_24h_style()) {
-    time_format = "%R";
-  } else {
-    time_format = "%I:%M";
-  }
+
+  char *time_format = clock_is_24h_style() ? "%R" : "%I:%M";
 
   static char s_time_text[] = "00:00";
   strftime(s_time_text, sizeof(s_time_text), time_format, current_time);
@@ -205,10 +211,10 @@ static void handle_second_tick(struct tm *tick_time, TimeUnits units_changed) {
 static void main_window_load(Window *window) {
   Layer *window_layer = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(window_layer);
-  
+
   // Init the layer that shows the board
-  s_board_layer = layer_create(bounds); 
-  layer_set_update_proc(s_board_layer, board_layer_update_callback); 
+  s_board_layer = layer_create(bounds);
+  layer_set_update_proc(s_board_layer, board_layer_update_callback);
   layer_add_child(window_layer, s_board_layer);
 
   // Init the layer that shows the player marks
@@ -217,7 +223,7 @@ static void main_window_load(Window *window) {
   layer_add_child(window_layer, s_players_layer);
 
   // Init the text layer used to show the time
-  s_time_layer = text_layer_create(GRect(0, 126, 144, 42));
+  s_time_layer = text_layer_create(GRect(0, 126, bounds.size.w, 42));
   text_layer_set_text_alignment(s_time_layer, GTextAlignmentCenter);
   text_layer_set_text_color(s_time_layer, COLOR_FOREGROUND);
   text_layer_set_background_color(s_time_layer, GColorClear);
